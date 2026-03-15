@@ -98,10 +98,12 @@ try {
 }
 
 try {
-    Invoke-WebRequest -Uri "$ServerUrl?ts=$(Get-Date -Format yyyyMMddHHmmss)" -OutFile "$ServerDir\server.py"
+    Invoke-WebRequest -Uri $ServerUrl -OutFile "$ServerDir\server.py" -UseBasicParsing
     Write-Host "  [OK] server.py downloaded" -ForegroundColor Green
 } catch {
-    Write-Host "  [FAIL] Download failed. Please copy server.py to $ServerDir manually." -ForegroundColor Red
+    Write-Host "  [FAIL] Download failed: $_" -ForegroundColor Red
+    Write-Host "  URL: $ServerUrl" -ForegroundColor Red
+    Write-Host "  Please copy server.py to $ServerDir manually." -ForegroundColor Yellow
     exit 1
 }
 
