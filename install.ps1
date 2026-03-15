@@ -1,7 +1,7 @@
 # ivLyrics YouTube Caption Server - Windows Install Script
 # Usage: iwr -useb https://your-url/install.ps1 | iex
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $ServerDir = "$env:LOCALAPPDATA\ivLyrics\ytcaption-server"
 $VersionUrl = "https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json?ts=$(Get-Date -Format yyyyMMddHHmmss)"
 $ServerUrl  = "https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.py"
