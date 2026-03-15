@@ -203,25 +203,26 @@ if (-not (Test-Path "$ServerDir\.env")) {
     Write-Host "  [OK] .env created" -ForegroundColor Green
 }
 
-# ── 4. Register auto-start ────────────────────────────────────────────────────
+# ── 4. Register auto-start (Task Scheduler) ──────────────────────────────────
 Write-Host "[4/4] Registering auto-start..." -ForegroundColor Yellow
 
-$startScript = "$ServerDir\start.ps1"
-Set-Content -Path $startScript -Value @"
-Set-Location `"$ServerDir`"
-& `"$node`" server.js
-"@
+$taskName = "ivLyrics-YTCaption"
 
-$startupFolder = [System.Environment]::GetFolderPath("Startup")
-$shortcutPath  = "$startupFolder\ivLyrics-YTCaption.lnk"
-$shell         = New-Object -ComObject WScript.Shell
-$shortcut      = $shell.CreateShortcut($shortcutPath)
-$shortcut.TargetPath    = "powershell.exe"
-$shortcut.Arguments     = "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$startScript`""
-$shortcut.WorkingDirectory = $ServerDir
-$shortcut.Description   = "ivLyrics YouTube Caption Server"
-$shortcut.Save()
-Write-Host "  [OK] Auto-start registered (starts on login)" -ForegroundColor Green
+# 기존 작업 제거
+Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+
+# node 실행 경로 확인
+$nodePath = (Get-Command $node -ErrorAction SilentlyContinue)?.Source
+if (-not $nodePath) { $nodePath = $node }
+
+# Task Scheduler 등록
+$action  = New-ScheduledTaskAction -Execute $nodePath -Argument "server.js" -WorkingDirectory $ServerDir
+$trigger = New-ScheduledTaskTrigger -AtLogOn
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
+Write-Host "  [OK] Task Scheduler registered (starts on login, background)" -ForegroundColor Green
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 Write-Host ""
@@ -237,9 +238,9 @@ Write-Host "  In ivLyrics Settings > YouTube Caption > Server URL," -ForegroundC
 Write-Host "  enter: http://localhost:$Port" -ForegroundColor White
 Write-Host ""
 
-# Start server now
+# Start server now via Task Scheduler
 Write-Host "Starting server..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$startScript`"" -WorkingDirectory $ServerDir
+Start-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 3
 
 # Health check
