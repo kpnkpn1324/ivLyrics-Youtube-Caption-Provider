@@ -1,154 +1,127 @@
 #!/bin/bash
-# ivLyrics YouTube Caption Server - macOS/Linux 설치 스크립트
-# 사용법: curl -fsSL https://your-url/install.sh | bash
+# ivLyrics YouTube Caption Server - macOS/Linux Install Script (Node.js)
+# Usage: curl -fsSL https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/install.sh | bash
 
 set -e
 
 SERVER_DIR="$HOME/.config/ivLyrics/ytcaption-server"
 VERSION_URL="https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json"
-SERVER_URL="https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.py"
+SERVER_JS_URL="https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.js"
+PKG_JSON_URL="https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/package.json"
 PORT=8080
 
-# 색상
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 
 echo ""
 echo -e "${CYAN}=================================================="
-echo -e "  ivLyrics YouTube Caption Server 설치"
+echo -e "  ivLyrics YouTube Caption Server Install"
 echo -e "==================================================${NC}"
 echo ""
 
-# ── 1. Python 확인 ────────────────────────────────────────────────────────────
-echo -e "${YELLOW}[1/5] Python 확인 중...${NC}"
-PYTHON=""
-for cmd in python3 python; do
-    if command -v $cmd &>/dev/null; then
-        VER=$($cmd --version 2>&1)
-        if echo "$VER" | grep -q "Python 3"; then
-            PYTHON=$cmd
-            echo -e "  ${GREEN}✓ $VER 발견${NC}"
-            break
-        fi
+# ── 1. Node.js check ──────────────────────────────────────────────────────────
+echo -e "${YELLOW}[1/4] Checking Node.js...${NC}"
+NODE=""
+if command -v node &>/dev/null; then
+    VER=$(node --version)
+    MAJOR=$(echo $VER | sed 's/v\([0-9]*\).*/\1/')
+    if [ "$MAJOR" -ge 18 ]; then
+        NODE="node"
+        echo -e "  ${GREEN}[OK] Node.js $VER found${NC}"
+    else
+        echo -e "  Node.js $VER too old (v18+ required). Installing newer..."
     fi
-done
+fi
 
-if [ -z "$PYTHON" ]; then
-    echo -e "  Python 3가 없습니다. 설치 중..."
+if [ -z "$NODE" ]; then
+    echo -e "  Node.js not found. Installing..."
     if [[ "$OSTYPE" == "darwin"* ]]; then
         if command -v brew &>/dev/null; then
-            brew install python3
+            brew install node
         else
-            echo -e "  ${RED}✗ Homebrew가 없습니다. https://brew.sh 설치 후 다시 시도하세요.${NC}"
-            exit 1
+            echo -e "  ${RED}[FAIL] Install Homebrew first: https://brew.sh${NC}"; exit 1
         fi
     else
-        sudo apt-get update -qq && sudo apt-get install -y python3 python3-pip
+        curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+        sudo apt-get install -y nodejs
     fi
-    PYTHON="python3"
-    echo -e "  ${GREEN}✓ Python 설치 완료${NC}"
+    NODE="node"
+    echo -e "  ${GREEN}[OK] Node.js $(node --version) installed${NC}"
 fi
 
-# ── 2. FFmpeg 확인 ────────────────────────────────────────────────────────────
-echo -e "${YELLOW}[2/5] FFmpeg 확인 중...${NC}"
-if command -v ffmpeg &>/dev/null; then
-    echo -e "  ${GREEN}✓ FFmpeg 발견${NC}"
+# ── 2. npm check ──────────────────────────────────────────────────────────────
+echo -e "${YELLOW}[2/4] Checking npm...${NC}"
+if command -v npm &>/dev/null; then
+    echo -e "  ${GREEN}[OK] npm $(npm --version) found${NC}"
 else
-    echo -e "  FFmpeg 없음. 설치 중..."
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        brew install ffmpeg
-    else
-        sudo apt-get install -y ffmpeg
-    fi
-    echo -e "  ${GREEN}✓ FFmpeg 설치 완료${NC}"
+    echo -e "  ${RED}[FAIL] npm not found. Reinstall Node.js.${NC}"; exit 1
 fi
 
-# ── 3. 패키지 설치 ───────────────────────────────────────────────────────────
-echo -e "${YELLOW}[3/5] Python 패키지 설치 중...${NC}"
-$PYTHON -m pip install --quiet --upgrade fastapi uvicorn yt-dlp python-dotenv "uvicorn[standard]" 2>/dev/null || \
-$PYTHON -m pip install --quiet --upgrade fastapi uvicorn yt-dlp python-dotenv "uvicorn[standard]" --break-system-packages
-echo -e "  ${GREEN}✓ 패키지 설치 완료${NC}"
-
-# ── 4. server.py 다운로드 ────────────────────────────────────────────────────
-echo -e "${YELLOW}[4/5] 서버 파일 다운로드 중...${NC}"
+# ── 3. Download server files ──────────────────────────────────────────────────
+echo -e "${YELLOW}[3/4] Downloading server files...${NC}"
 mkdir -p "$SERVER_DIR"
 
-# version.json에서 최신 버전 확인
+# version.json 확인
 VERSION_INFO=$(curl -fsSL "${VERSION_URL}?ts=$(date +%s)" 2>/dev/null || echo "{}")
-LATEST_VERSION=$(echo "$VERSION_INFO" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('server',''))" 2>/dev/null || echo "")
-CUSTOM_URL=$(echo "$VERSION_INFO" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('serverUrl',''))" 2>/dev/null || echo "")
-if [ -n "$CUSTOM_URL" ]; then SERVER_URL="$CUSTOM_URL"; fi
-if [ -n "$LATEST_VERSION" ]; then
-    echo -e "  최신 버전: v$LATEST_VERSION"
-fi
+LATEST=$(echo "$VERSION_INFO" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('server',''))" 2>/dev/null || echo "")
+CUSTOM_URL=$(echo "$VERSION_INFO" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('serverJsUrl',''))" 2>/dev/null || echo "")
+if [ -n "$CUSTOM_URL" ]; then SERVER_JS_URL="$CUSTOM_URL"; fi
+if [ -n "$LATEST" ]; then echo -e "  Latest version: v$LATEST"; fi
 
-if curl -fsSL "${SERVER_URL}?ts=$(date +%s)" -o "$SERVER_DIR/server.py"; then
-    echo -e "  ${GREEN}✓ server.py 다운로드 완료${NC}"
+# server.js 다운로드
+if curl -fsSL "$SERVER_JS_URL" -o "$SERVER_DIR/server.js"; then
+    echo -e "  ${GREEN}[OK] server.js downloaded${NC}"
 else
-    echo -e "  ${RED}✗ 다운로드 실패. server.py를 $SERVER_DIR 에 수동으로 복사하세요.${NC}"
-    exit 1
+    echo -e "  ${RED}[FAIL] server.js download failed${NC}"; exit 1
 fi
 
-# ── 5. 자동 시작 등록 ────────────────────────────────────────────────────────
-echo -e "${YELLOW}[5/5] 자동 시작 등록 중...${NC}"
+# package.json 다운로드
+if curl -fsSL "$PKG_JSON_URL" -o "$SERVER_DIR/package.json"; then
+    echo -e "  ${GREEN}[OK] package.json downloaded${NC}"
+else
+    echo -e "  ${RED}[FAIL] package.json download failed${NC}"; exit 1
+fi
 
-START_SCRIPT="$SERVER_DIR/start.sh"
-cat > "$START_SCRIPT" << EOF
-#!/bin/bash
-cd "$SERVER_DIR"
-$PYTHON -m uvicorn server:app --host 127.0.0.1 --port $PORT --log-level warning
-EOF
-chmod +x "$START_SCRIPT"
+# npm install
+echo -e "  Installing npm packages..."
+cd "$SERVER_DIR" && npm install --silent
+echo -e "  ${GREEN}[OK] npm packages installed${NC}"
+
+# .env 파일 생성
+if [ ! -f "$SERVER_DIR/.env" ]; then
+    echo "PORT=$PORT" > "$SERVER_DIR/.env"
+    echo -e "  ${GREEN}[OK] .env created${NC}"
+fi
+
+# ── 4. Register auto-start ────────────────────────────────────────────────────
+echo -e "${YELLOW}[4/4] Registering auto-start...${NC}"
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS: LaunchAgent 등록
-    PLIST_DIR="$HOME/Library/LaunchAgents"
-    PLIST_PATH="$PLIST_DIR/kr.ivlis.ytcaption.plist"
-    mkdir -p "$PLIST_DIR"
-    cat > "$PLIST_PATH" << EOF
+    PLIST="$HOME/Library/LaunchAgents/kr.ivlis.ytcaption.plist"
+    mkdir -p "$(dirname "$PLIST")"
+    cat > "$PLIST" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>Label</key>
-    <string>kr.ivlis.ytcaption</string>
+    <key>Label</key><string>kr.ivlis.ytcaption</string>
     <key>ProgramArguments</key>
     <array>
-        <string>$PYTHON</string>
-        <string>-m</string>
-        <string>uvicorn</string>
-        <string>server:app</string>
-        <string>--host</string>
-        <string>127.0.0.1</string>
-        <string>--port</string>
-        <string>$PORT</string>
-        <string>--log-level</string>
-        <string>warning</string>
+        <string>$(which node)</string>
+        <string>$SERVER_DIR/server.js</string>
     </array>
-    <key>WorkingDirectory</key>
-    <string>$SERVER_DIR</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>$SERVER_DIR/server.log</string>
-    <key>StandardErrorPath</key>
-    <string>$SERVER_DIR/server.log</string>
+    <key>WorkingDirectory</key><string>$SERVER_DIR</string>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+    <key>StandardOutPath</key><string>$SERVER_DIR/server.log</string>
+    <key>StandardErrorPath</key><string>$SERVER_DIR/server.log</string>
 </dict>
 </plist>
 EOF
-    launchctl load "$PLIST_PATH" 2>/dev/null || true
-    echo -e "  ${GREEN}✓ LaunchAgent 등록 완료 (로그인 시 자동 시작)${NC}"
-
+    launchctl load "$PLIST" 2>/dev/null || true
+    echo -e "  ${GREEN}[OK] LaunchAgent registered${NC}"
 else
-    # Linux: systemd user service 등록
-    SYSTEMD_DIR="$HOME/.config/systemd/user"
-    mkdir -p "$SYSTEMD_DIR"
-    cat > "$SYSTEMD_DIR/ivlyrics-ytcaption.service" << EOF
+    mkdir -p "$HOME/.config/systemd/user"
+    cat > "$HOME/.config/systemd/user/ivlyrics-ytcaption.service" << EOF
 [Unit]
 Description=ivLyrics YouTube Caption Server
 After=network.target
@@ -156,7 +129,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=$SERVER_DIR
-ExecStart=$PYTHON -m uvicorn server:app --host 127.0.0.1 --port $PORT --log-level warning
+ExecStart=$(which node) $SERVER_DIR/server.js
 Restart=on-failure
 RestartSec=5
 
@@ -166,28 +139,27 @@ EOF
     systemctl --user daemon-reload
     systemctl --user enable ivlyrics-ytcaption.service
     systemctl --user start ivlyrics-ytcaption.service
-    echo -e "  ${GREEN}✓ systemd 서비스 등록 완료 (로그인 시 자동 시작)${NC}"
+    echo -e "  ${GREEN}[OK] systemd service registered${NC}"
 fi
 
-# ── 완료 ─────────────────────────────────────────────────────────────────────
+# ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${CYAN}=================================================="
-echo -e "  설치 완료!"
+echo -e "  Installation complete!"
 echo -e "==================================================${NC}"
 echo ""
-echo -e "  서버 주소: http://localhost:$PORT"
-echo -e "  설치 위치: $SERVER_DIR"
-echo -e "  로그인 시 자동으로 실행됩니다."
+echo -e "  Server URL:   http://localhost:$PORT"
+echo -e "  Install path: $SERVER_DIR"
+echo -e "  Starts automatically on login."
 echo ""
-echo -e "  ivLyrics 설정 > YouTube Caption > 서버 URL에"
-echo -e "  http://localhost:$PORT 을 입력하세요."
+echo -e "  In ivLyrics Settings > YouTube Caption > Server URL,"
+echo -e "  enter: http://localhost:$PORT"
 echo ""
 
-# 헬스체크
 sleep 2
 if curl -sf "http://localhost:$PORT/health" &>/dev/null; then
-    echo -e "  ${GREEN}✓ 서버 정상 실행 중!${NC}"
+    echo -e "  ${GREEN}[OK] Server is running!${NC}"
 else
-    echo -e "  ${YELLOW}서버가 시작되는 중입니다. 잠시 후 ivLyrics에서 연결 테스트를 해보세요.${NC}"
+    echo -e "  ${YELLOW}Server is starting. Test connection in ivLyrics shortly.${NC}"
 fi
 echo ""
