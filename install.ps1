@@ -17,43 +17,97 @@ Write-Host ""
 # ── 1. Node.js check ──────────────────────────────────────────────────────────
 Write-Host "[1/4] Checking Node.js..." -ForegroundColor Yellow
 $node = $null
+
+# PATH 갱신
+$env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+
+# 일반 PATH에서 확인
 try {
     $ver = node --version 2>&1
-    if ($ver -match "v(\d+)") {
-        $major = [int]$Matches[1]
-        if ($major -ge 18) {
-            $node = "node"
-            Write-Host "  [OK] Node.js $ver found" -ForegroundColor Green
-        } else {
-            Write-Host "  Node.js $ver is too old (v18+ required). Updating..." -ForegroundColor Yellow
-        }
+    if ($ver -match "v(\d+)" -and [int]$Matches[1] -ge 18) {
+        $node = "node"
+        Write-Host "  [OK] Node.js $ver found" -ForegroundColor Green
     }
 } catch {}
 
+# Spicetify 내장 Node.js 탐색
 if (-not $node) {
-    Write-Host "  Node.js not found. Installing..." -ForegroundColor Yellow
-    $installed = $false
+    $spicePaths = @(
+        "$env:LOCALAPPDATA\spicetify",
+        "$env:APPDATA\spicetify",
+        "$env:USERPROFILE\.spicetify",
+        "$env:USERPROFILE\.config\spicetify"
+    )
+    foreach ($sp in $spicePaths) {
+        $nodeExe = Get-ChildItem -Path $sp -Filter "node.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($nodeExe) {
+            $ver = & $nodeExe.FullName --version 2>&1
+            if ($ver -match "v(\d+)" -and [int]$Matches[1] -ge 18) {
+                $node = $nodeExe.FullName
+                Write-Host "  [OK] Node.js $ver found (Spicetify): $($nodeExe.FullName)" -ForegroundColor Green
+                break
+            }
+        }
+    }
+}
 
-    # winget 시도
+# 일반적인 Node.js 설치 경로 탐색
+if (-not $node) {
+    $commonPaths = @(
+        "$env:ProgramFiles
+odejs
+ode.exe",
+        "$env:ProgramFiles(x86)
+odejs
+ode.exe",
+        "$env:LOCALAPPDATA\Programs
+odejs
+ode.exe"
+    )
+    foreach ($p in $commonPaths) {
+        if (Test-Path $p) {
+            $ver = & $p --version 2>&1
+            if ($ver -match "v(\d+)" -and [int]$Matches[1] -ge 18) {
+                $node = $p
+                Write-Host "  [OK] Node.js $ver found: $p" -ForegroundColor Green
+                break
+            }
+        }
+    }
+}
+
+# 없으면 winget으로 설치
+if (-not $node) {
+    Write-Host "  Node.js not found. Installing via winget..." -ForegroundColor Yellow
     try {
-        winget install --id OpenJS.NodeJS.LTS -e --source winget --accept-source-agreements --accept-package-agreements --silent 2>&1 | Out-Null
+        winget install --id OpenJS.NodeJS.LTS -e --source winget --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
         $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
         $ver = node --version 2>&1
-        if ($ver -match "v") { $node = "node"; $installed = $true; Write-Host "  [OK] Node.js $ver installed" -ForegroundColor Green }
+        if ($ver -match "v(\d+)" -and [int]$Matches[1] -ge 18) {
+            $node = "node"
+            Write-Host "  [OK] Node.js $ver installed" -ForegroundColor Green
+        }
     } catch {}
+}
 
-    if (-not $installed) {
-        Write-Host "  [FAIL] Node.js auto-install failed." -ForegroundColor Red
-        Write-Host "  Please install Node.js v18+ from https://nodejs.org" -ForegroundColor Yellow
-        Read-Host "Press Enter to exit"
-        exit 1
-    }
+if (-not $node) {
+    Write-Host "  [FAIL] Node.js not found." -ForegroundColor Red
+    Write-Host "  Please install Node.js v18+ from https://nodejs.org and run this script again." -ForegroundColor Yellow
+    Read-Host "Press Enter to exit"
+    exit 1
 }
 
 # ── 2. npm check ──────────────────────────────────────────────────────────────
 Write-Host "[2/4] Checking npm..." -ForegroundColor Yellow
+# node 경로 기준으로 npm 찾기
+$npmCmd = "npm"
+if ($node -ne "node") {
+    $nodeDir = Split-Path $node
+    $npmPath = Join-Path $nodeDir "npm.cmd"
+    if (Test-Path $npmPath) { $npmCmd = $npmPath }
+}
 try {
-    $npmVer = npm --version 2>&1
+    $npmVer = & $npmCmd --version 2>&1
     Write-Host "  [OK] npm $npmVer found" -ForegroundColor Green
 } catch {
     Write-Host "  [FAIL] npm not found. Please reinstall Node.js." -ForegroundColor Red
@@ -95,7 +149,7 @@ try {
 Write-Host "  Installing npm packages..." -ForegroundColor Yellow
 Push-Location $ServerDir
 try {
-    npm install --silent 2>&1 | Out-Null
+    & $npmCmd install --silent 2>&1 | Out-Null
     Write-Host "  [OK] npm packages installed" -ForegroundColor Green
 } catch {
     Write-Host "  [FAIL] npm install failed: $_" -ForegroundColor Red
@@ -115,8 +169,8 @@ Write-Host "[4/4] Registering auto-start..." -ForegroundColor Yellow
 
 $startScript = "$ServerDir\start.ps1"
 Set-Content -Path $startScript -Value @"
-Set-Location "$ServerDir"
-node server.js
+Set-Location `"$ServerDir`"
+& `"$node`" server.js
 "@
 
 $startupFolder = [System.Environment]::GetFolderPath("Startup")
