@@ -177,7 +177,8 @@ if ($ytdlpSrc) {
     Write-Host "  [OK] yt-dlp copied from: $ytdlpSrc" -ForegroundColor Green
 } else {
     # PATH에서 탐색
-    $ytdlpInPath = (Get-Command yt-dlp -ErrorAction SilentlyContinue)?.Source
+    $ytdlpCmd = Get-Command yt-dlp -ErrorAction SilentlyContinue
+    $ytdlpInPath = if ($ytdlpCmd) { $ytdlpCmd.Source } else { $null }
     if ($ytdlpInPath -and (Test-Path $ytdlpInPath) -and (Get-Item $ytdlpInPath).Length -gt 0) {
         Copy-Item $ytdlpInPath $ytdlpDest -Force
         Write-Host "  [OK] yt-dlp copied from PATH" -ForegroundColor Green
@@ -212,7 +213,8 @@ $taskName = "ivLyrics-YTCaption"
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
 # node 실행 경로 확인
-$nodePath = (Get-Command $node -ErrorAction SilentlyContinue)?.Source
+$nodeCmd = Get-Command $node -ErrorAction SilentlyContinue
+$nodePath = if ($nodeCmd) { $nodeCmd.Source } else { $node }
 if (-not $nodePath) { $nodePath = $node }
 
 # Task Scheduler 등록
