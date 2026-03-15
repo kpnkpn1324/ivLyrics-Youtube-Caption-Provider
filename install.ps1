@@ -206,11 +206,12 @@ $nodeCmd = Get-Command $node -ErrorAction SilentlyContinue
 $nodePath = if ($nodeCmd) { $nodeCmd.Source } else { $node }
 if (-not $nodePath) { $nodePath = $node }
 
-# VBScript로 숨김 창 실행 (창 없이 백그라운드 실행)
+# VBScript 파일 생성 (숨김 창 백그라운드 실행)
 $vbsPath = "$ServerDir\start.vbs"
-$vbsContent = "Set WshShell = CreateObject(""WScript.Shell"")" + [Environment]::NewLine
-$vbsContent += "WshShell.Run """"""" + $nodePath + """""" server.js"", 0, False" + [Environment]::NewLine
-Set-Content -Path $vbsPath -Value $vbsContent -Encoding UTF8
+$line1 = 'Set WshShell = CreateObject("WScript.Shell")'
+$line2 = 'WshShell.Run Chr(34) & "' + $nodePath + '" & Chr(34) & " server.js", 0, False'
+$line1 | Out-File -FilePath $vbsPath -Encoding UTF8
+$line2 | Out-File -FilePath $vbsPath -Encoding UTF8 -Append
 
 # 시작 프로그램 폴더에 단축키 생성
 $startupFolder = [System.Environment]::GetFolderPath("Startup")
