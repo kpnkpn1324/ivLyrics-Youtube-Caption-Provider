@@ -35,7 +35,7 @@ const https      = require('https');
 const http       = require('http');
 
 // ─── 버전 정보 ────────────────────────────────────────────────────────────────
-const SERVER_VERSION     = '1.0.0';
+const SERVER_VERSION     = '1.0.1';
 const GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json';
 const GITHUB_SERVER_URL  = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.js';
 
@@ -62,9 +62,16 @@ function findYtdlp() {
   const isWin = process.platform === 'win32';
   const bin   = isWin ? 'yt-dlp.exe' : 'yt-dlp';
 
-  // 서버 파일 옆에 있는지 확인
-  const local = path.join(__dirname, bin);
-  if (fs.existsSync(local)) return local;
+  // __dirname, process.cwd(), 실행 파일 위치 모두 확인
+  const searchDirs = [
+    __dirname,
+    process.cwd(),
+    path.dirname(process.execPath),
+  ];
+  for (const dir of searchDirs) {
+    const full = path.join(dir, bin);
+    if (fs.existsSync(full)) return full;
+  }
 
   // PATH에서 탐색
   const pathDirs = (process.env.PATH || '').split(path.delimiter);
@@ -73,7 +80,7 @@ function findYtdlp() {
     if (fs.existsSync(full)) return full;
   }
 
-  return bin; // fallback: PATH에서 찾길 기대
+  return bin; // fallback
 }
 
 let YTDLP_PATH = findYtdlp();
@@ -433,12 +440,14 @@ async function doSelfUpdate(latestVersion) {
     await fsp.copyFile(serverPath, backupPath);
     await downloadFile(GITHUB_SERVER_URL + '?ts=' + Date.now(), serverPath);
     log.info('[업데이트] 완료, 재시작 중...');
-    process.on('exit', () => {
-      require('child_process').spawn(process.argv[0], process.argv.slice(1), {
-        detached: true, stdio: 'inherit',
-      });
+    const { spawn } = require('child_process');
+    const child = spawn(process.argv[0], process.argv.slice(1), {
+      detached: true,
+      stdio: 'inherit',
+      cwd: process.cwd(),
     });
-    process.exit(0);
+    child.unref();
+    setTimeout(() => process.exit(0), 500);
   } catch (e) {
     log.error(`[업데이트] 실패: ${e.message}`);
     await fsp.copyFile(backupPath, serverPath).catch(() => {});
