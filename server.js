@@ -627,10 +627,18 @@ server.on('upgrade', (req, socket) => { socket.destroy(); });
 // ─── 시작 ─────────────────────────────────────────────────────────────────────
 async function start() {
   // yt-dlp 확인 및 자동 다운로드
+  // 0KB 파일 체크 (다운로드 실패한 빈 파일)
+  try {
+    const stat = fs.statSync(YTDLP_PATH);
+    if (stat.size === 0) throw new Error('empty file');
+  } catch {}
+
   try {
     await execFileAsync(YTDLP_PATH, ['--version'], { timeout: 5000 });
     log.info(`[시작] yt-dlp 확인됨: ${YTDLP_PATH}`);
   } catch {
+    // 0KB 파일 삭제 후 재다운로드
+    try { fs.unlinkSync(YTDLP_PATH); } catch {}
     log.warn('[시작] yt-dlp 없음, 자동 다운로드 시작...');
     try {
       await downloadYtdlp();

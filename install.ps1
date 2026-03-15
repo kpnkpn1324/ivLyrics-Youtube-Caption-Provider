@@ -157,6 +157,46 @@ try {
 }
 Pop-Location
 
+# yt-dlp 복사 (pip로 설치된 것 우선, 없으면 다운로드)
+$ytdlpDest = "$ServerDir\yt-dlp.exe"
+$ytdlpSrc  = $null
+
+# pip Scripts 폴더에서 탐색
+$pipPaths = @(
+    "$env:LOCALAPPDATA\Python",
+    "$env:APPDATA\Python",
+    "$env:LOCALAPPDATA\Programs\Python"
+)
+foreach ($pp in $pipPaths) {
+    $found = Get-ChildItem -Path $pp -Filter "yt-dlp.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($found -and $found.Length -gt 0) { $ytdlpSrc = $found.FullName; break }
+}
+
+if ($ytdlpSrc) {
+    Copy-Item $ytdlpSrc $ytdlpDest -Force
+    Write-Host "  [OK] yt-dlp copied from: $ytdlpSrc" -ForegroundColor Green
+} else {
+    # PATH에서 탐색
+    $ytdlpInPath = (Get-Command yt-dlp -ErrorAction SilentlyContinue)?.Source
+    if ($ytdlpInPath -and (Test-Path $ytdlpInPath) -and (Get-Item $ytdlpInPath).Length -gt 0) {
+        Copy-Item $ytdlpInPath $ytdlpDest -Force
+        Write-Host "  [OK] yt-dlp copied from PATH" -ForegroundColor Green
+    } else {
+        # pip install로 설치
+        Write-Host "  yt-dlp not found, installing via pip..." -ForegroundColor Yellow
+        try {
+            python -m pip install yt-dlp --quiet 2>&1 | Out-Null
+            $found = Get-ChildItem -Path "$env:LOCALAPPDATA\Python" -Filter "yt-dlp.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) {
+                Copy-Item $found.FullName $ytdlpDest -Force
+                Write-Host "  [OK] yt-dlp installed and copied" -ForegroundColor Green
+            }
+        } catch {
+            Write-Host "  [WARN] yt-dlp auto-install failed. Server will download it on first run." -ForegroundColor Yellow
+        }
+    }
+}
+
 # .env 파일 생성
 if (-not (Test-Path "$ServerDir\.env")) {
     Set-Content -Path "$ServerDir\.env" -Value "PORT=$Port"
