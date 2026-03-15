@@ -198,27 +198,31 @@ if (-not (Test-Path "$ServerDir\.env")) {
     Write-Host "  [OK] .env created" -ForegroundColor Green
 }
 
-# ── 4. Register auto-start (Task Scheduler) ──────────────────────────────────
+# ── 4. Register auto-start (Startup folder) ──────────────────────────────────
 Write-Host "[4/4] Registering auto-start..." -ForegroundColor Yellow
-
-$taskName = "ivLyrics-YTCaption"
-
-# 기존 작업 제거
-Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
 # node 실행 경로 확인
 $nodeCmd = Get-Command $node -ErrorAction SilentlyContinue
 $nodePath = if ($nodeCmd) { $nodeCmd.Source } else { $node }
 if (-not $nodePath) { $nodePath = $node }
 
-# Task Scheduler 등록
-$action  = New-ScheduledTaskAction -Execute $nodePath -Argument "server.js" -WorkingDirectory $ServerDir
-$trigger = New-ScheduledTaskTrigger -AtLogOn
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+# VBScript로 숨김 창 실행 (창 없이 백그라운드 실행)
+$vbsPath = "$ServerDir\start.vbs"
+$vbsContent = "Set WshShell = CreateObject(""WScript.Shell"")" + [Environment]::NewLine
+$vbsContent += "WshShell.Run """"""" + $nodePath + """""" server.js"", 0, False" + [Environment]::NewLine
+Set-Content -Path $vbsPath -Value $vbsContent -Encoding UTF8
 
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
-Write-Host "  [OK] Task Scheduler registered (starts on login, background)" -ForegroundColor Green
+# 시작 프로그램 폴더에 단축키 생성
+$startupFolder = [System.Environment]::GetFolderPath("Startup")
+$shortcutPath  = "$startupFolder\ivLyrics-YTCaption.lnk"
+$shell         = New-Object -ComObject WScript.Shell
+$shortcut      = $shell.CreateShortcut($shortcutPath)
+$shortcut.TargetPath       = "wscript.exe"
+$shortcut.Arguments        = "`"$vbsPath`""
+$shortcut.WorkingDirectory = $ServerDir
+$shortcut.Description      = "ivLyrics YouTube Caption Server"
+$shortcut.Save()
+Write-Host "  [OK] Auto-start registered (starts on login, background)" -ForegroundColor Green
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 Write-Host ""
@@ -234,9 +238,9 @@ Write-Host "  In ivLyrics Settings > YouTube Caption > Server URL," -ForegroundC
 Write-Host "  enter: http://localhost:$Port" -ForegroundColor White
 Write-Host ""
 
-# Start server now via Task Scheduler
+# Start server now (background, no window)
 Write-Host "Starting server..." -ForegroundColor Yellow
-Start-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+Start-Process "wscript.exe" -ArgumentList "`"$vbsPath`"" -WorkingDirectory $ServerDir
 Start-Sleep -Seconds 3
 
 # Health check
