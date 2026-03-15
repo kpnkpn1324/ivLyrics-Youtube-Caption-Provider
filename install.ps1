@@ -93,8 +93,7 @@ if (-not $node) {
 if (-not $node) {
     Write-Host "  [FAIL] Node.js not found." -ForegroundColor Red
     Write-Host "  Please install Node.js v18+ from https://nodejs.org and run this script again." -ForegroundColor Yellow
-    Read-Host "Press Enter to exit"
-    exit 1
+    return
 }
 
 # ── 2. npm check ──────────────────────────────────────────────────────────────
@@ -111,7 +110,7 @@ try {
     Write-Host "  [OK] npm $npmVer found" -ForegroundColor Green
 } catch {
     Write-Host "  [FAIL] npm not found. Please reinstall Node.js." -ForegroundColor Red
-    exit 1
+    return
 }
 
 # ── 3. Download server files ──────────────────────────────────────────────────
@@ -133,7 +132,7 @@ try {
     Write-Host "  [OK] server.js downloaded" -ForegroundColor Green
 } catch {
     Write-Host "  [FAIL] server.js download failed: $_" -ForegroundColor Red
-    exit 1
+    return
 }
 
 # package.json 다운로드
@@ -142,7 +141,7 @@ try {
     Write-Host "  [OK] package.json downloaded" -ForegroundColor Green
 } catch {
     Write-Host "  [FAIL] package.json download failed: $_" -ForegroundColor Red
-    exit 1
+    return
 }
 
 # npm install
@@ -154,7 +153,7 @@ try {
 } catch {
     Write-Host "  [FAIL] npm install failed: $_" -ForegroundColor Red
     Pop-Location
-    exit 1
+    return
 }
 Pop-Location
 
@@ -211,4 +210,5 @@ try {
     Write-Host "  Server is starting. Test connection in ivLyrics shortly." -ForegroundColor Yellow
 }
 
+Write-Host ""
 Write-Host ""
