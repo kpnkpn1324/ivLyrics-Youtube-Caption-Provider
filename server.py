@@ -37,8 +37,8 @@ load_dotenv()
 
 # ─── 버전 정보 ────────────────────────────────────────────────────────────────
 SERVER_VERSION = "1.0.0"
-GITHUB_VERSION_URL = "https://raw.githubusercontent.com/ivLis-Studio/ivLyrics/main/ytcaption-server/version.json"
-GITHUB_SERVER_URL  = "https://raw.githubusercontent.com/ivLis-Studio/ivLyrics/main/ytcaption-server/server.py"
+GITHUB_VERSION_URL = "https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json"
+GITHUB_SERVER_URL  = "https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.py"
 
 def _fetch_latest_version() -> dict:
     """GitHub에서 최신 버전 정보 가져오기"""
@@ -269,7 +269,7 @@ def _detect_lang(title: str, artist: str) -> Optional[str]:
         })
         url = f"https://musicbrainz.org/ws/2/recording/?{query}"
         req = urllib.request.Request(url, headers={
-            "User-Agent": "ivLyrics/1.0 (https://github.com/ivLis-Studio/ivLyrics)"
+            "User-Agent": "ivLyrics/1.0 (https://github.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider)"
         })
         with urllib.request.urlopen(req, timeout=8) as resp:
             data = __import__("json").loads(resp.read())

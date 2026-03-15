@@ -1,7 +1,7 @@
 {
-  "server": "1.0.0",
+  "server": "1.0.1",
   "addon": "1.0.0",
-  "serverUrl": "https://raw.githubusercontent.com/ivLis-Studio/ivLyrics/main/ytcaption-server/server.py",
+  "serverUrl": "https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.py",
   "changelog": {
     "1.0.0": "최초 릴리즈"
   }

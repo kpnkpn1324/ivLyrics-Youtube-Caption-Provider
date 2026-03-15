@@ -5,8 +5,8 @@
 set -e
 
 SERVER_DIR="$HOME/.config/ivLyrics/ytcaption-server"
-VERSION_URL="https://raw.githubusercontent.com/ivLis-Studio/ivLyrics/main/ytcaption-server/version.json"
-SERVER_URL="https://raw.githubusercontent.com/ivLis-Studio/ivLyrics/main/ytcaption-server/server.py"
+VERSION_URL="https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json"
+SERVER_URL="https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.py"
 PORT=8080
 
 # 색상

@@ -30,7 +30,7 @@
 
     const ADDON_ID      = 'youtube-caption';
     const ADDON_VERSION = '1.0.0';
-    const GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/ivLis-Studio/ivLyrics/main/ytcaption-server/version.json';
+    const GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json';
 
     const ADDON_INFO = {
         id: ADDON_ID,
