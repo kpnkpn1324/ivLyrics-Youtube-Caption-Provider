@@ -1,0 +1,16 @@
+{
+  "addons": [
+    {
+      "name": "YouTube Caption",
+      "type": "lyrics",
+      "author": "ivLis STUDIO",
+      "version": "1.0.0",
+      "updated": "2026-03-16",
+      "description": "YouTube 공식 MV 자막에서 가사를 가져옵니다. 로컬 서버(yt-dlp) 설치 필요.\n\nFetches lyrics from YouTube official MV captions. Requires local server (yt-dlp) installation.",
+      "downloadUrl": "https://raw.githubusercontent.com/YOUR_USERNAME/ivLyrics-ytcaption/main/Addon_Lyrics_YoutubeCaption.js",
+      "githubUrl": "https://github.com/YOUR_USERNAME/ivLyrics-ytcaption",
+      "preview": "https://raw.githubusercontent.com/YOUR_USERNAME/ivLyrics-ytcaption/main/preview.png",
+      "minAppVersion": "3.1.0"
+    }
+  ]
+}

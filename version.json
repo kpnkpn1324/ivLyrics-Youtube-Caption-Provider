@@ -1,0 +1,8 @@
+{
+  "server": "1.0.0",
+  "addon": "1.0.0",
+  "serverUrl": "https://raw.githubusercontent.com/ivLis-Studio/ivLyrics/main/ytcaption-server/server.py",
+  "changelog": {
+    "1.0.0": "최초 릴리즈"
+  }
+}
