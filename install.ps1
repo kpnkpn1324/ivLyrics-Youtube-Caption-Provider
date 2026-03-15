@@ -54,15 +54,9 @@ if (-not $node) {
 # 일반적인 Node.js 설치 경로 탐색
 if (-not $node) {
     $commonPaths = @(
-        "$env:ProgramFiles
-odejs
-ode.exe",
-        "$env:ProgramFiles(x86)
-odejs
-ode.exe",
-        "$env:LOCALAPPDATA\Programs
-odejs
-ode.exe"
+        "$env:ProgramFiles\nodejs\node.exe",
+        "${env:ProgramFiles(x86)}\nodejs\node.exe",
+        "$env:LOCALAPPDATA\Programs\nodejs\node.exe"
     )
     foreach ($p in $commonPaths) {
         if (Test-Path $p) {
