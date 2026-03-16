@@ -3,7 +3,7 @@
     {
       "name": "YouTube Caption",
       "type": "lyrics",
-      "author": "ivLis STUDIO",
+      "author": "balloon",
       "version": "1.0.1",
       "updated": "2026-03-16",
       "description": "YouTube 공식 MV 자막에서 가사를 가져오는 ivLyrics 애드온입니다.\n\n【설치 방법】\n1. 이 애드온을 설치합니다.\n2. 아래 명령어로 로컬 서버를 설치합니다.\n\nWindows (PowerShell):\niwr -useb \"https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/install.ps1\" -OutFile \"$env:TEMP\\ytc.ps1\"; powershell -ExecutionPolicy Bypass -NoExit -File \"$env:TEMP\\ytc.ps1\"\n\nmacOS / Linux:\ncurl -fsSL https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/install.sh | bash\n\n3. ivLyrics 설정 → YouTube Caption → 서버 URL: http://localhost:8080\n\n---\nFetches lyrics from YouTube official MV captions.\n\n【Install】\n1. Install this addon.\n2. Run the install script above.\n3. In ivLyrics Settings > YouTube Caption > Server URL: http://localhost:8080",
