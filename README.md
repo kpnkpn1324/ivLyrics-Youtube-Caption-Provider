@@ -1,6 +1,6 @@
 # ivLyrics YouTube Caption Provider
 
-YouTube 공식 MV 자막에서 가사를 가져오는 [ivLyrics](https://github.com/ivLis-Studio/ivLyrics) 애드온입니다.
+YouTube 공식 MV 자막에서 가사를 가져오는 애드온입니다.
 
 ## 미리보기
 
@@ -72,12 +72,6 @@ Spotify 재생
   → 수동 자막 우선, 없으면 자동 자막
   → LRC 포맷으로 반환 → ivLyrics에 표시
 ```
-
-## 요구사항
-
-- [ivLyrics](https://github.com/ivLis-Studio/ivLyrics) 설치됨
-- Node.js v18+ (설치 스크립트가 자동 설치)
-- 인터넷 연결
 
 ## 라이선스
 
