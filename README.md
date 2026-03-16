@@ -1,4 +1,4 @@
-# ivLyrics YouTube Caption Provider
+# YouTube Caption Provider
 
 YouTube 공식 MV 자막에서 가사를 가져오는 애드온입니다.
 
@@ -74,5 +74,87 @@ Spotify 재생
 ```
 
 ## 라이선스
+
+MIT
+
+---
+---
+
+# YouTube Caption Provider
+
+An ivLyrics addon that fetches lyrics from YouTube official MV captions.
+
+## Preview
+
+> Install from the ivLyrics Marketplace, run the local server, and YouTube caption lyrics will be displayed automatically.
+
+---
+
+## Installation
+
+### Step 1 - Install the Addon
+
+Search for `YouTube Caption` in the **ivLyrics Marketplace** and install it.
+
+Or manually copy `Addon_Lyrics_YoutubeCaption.js` to your ivLyrics folder.
+
+---
+
+### Step 2 - Install the Local Server
+
+The server runs **on your own computer**. Install it once and it will start automatically on boot.
+
+#### Windows
+
+```powershell
+iwr -useb "https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/install.ps1" -OutFile "$env:TEMP\ytc.ps1"; powershell -ExecutionPolicy Bypass -NoExit -File "$env:TEMP\ytc.ps1"
+```
+
+#### macOS / Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/install.sh | bash
+```
+
+---
+
+### Step 3 - Configure Server URL
+
+In ivLyrics Settings → **YouTube Caption** → Server URL, enter:
+
+```
+http://localhost:8080
+```
+
+---
+
+## Uninstall
+
+#### Windows
+
+```powershell
+iwr -useb "https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/uninstall.ps1" -OutFile "$env:TEMP\ytc_uninstall.ps1"; powershell -ExecutionPolicy Bypass -NoExit -File "$env:TEMP\ytc_uninstall.ps1"
+```
+
+#### macOS / Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/uninstall.sh | bash
+```
+
+---
+
+## How It Works
+
+```
+Spotify playback
+  → ivLyrics sends track title + artist
+  → Local server detects song language via MusicBrainz
+  → Searches YouTube Music / MV for captions in that language
+  → Manual captions preferred, auto-captions as fallback
+  → Returns LRC format → displayed in ivLyrics
+```
+
+## License
 
 MIT
