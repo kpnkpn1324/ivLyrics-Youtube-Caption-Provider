@@ -35,7 +35,7 @@ const https      = require('https');
 const http       = require('http');
 
 // ─── 버전 정보 ────────────────────────────────────────────────────────────────
-const SERVER_VERSION     = '1.0.1';
+const SERVER_VERSION     = '1.0.2';
 const GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json';
 const GITHUB_SERVER_URL  = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.js';
 
