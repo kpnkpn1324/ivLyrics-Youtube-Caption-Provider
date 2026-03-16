@@ -138,6 +138,9 @@
     // getSettingsUI() → ivLyrics 설정 패널에 자동 렌더링
     // ============================================
 
+    const INSTALL_CMD_WIN = `iwr -useb "https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/install.ps1" -OutFile "$env:TEMP\\ytc.ps1"; powershell -ExecutionPolicy Bypass -NoExit -File "$env:TEMP\\ytc.ps1"`;
+    const INSTALL_CMD_MAC = `curl -fsSL https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/install.sh | bash`;
+
     function getSettingsUI() {
         const React = Spicetify.React;
         const { useState, useEffect } = React;
@@ -146,7 +149,8 @@
             const [serverUrl,  setServerUrl]  = useState(() => getSetting(SETTING.SERVER_URL,  DEFAULT_SERVER_URL));
             const [apiSecret,  setApiSecret]  = useState(() => getSetting(SETTING.API_SECRET,  ''));
             const [timeoutSec, setTimeoutSec] = useState(() => getSetting(SETTING.TIMEOUT_SEC, DEFAULT_TIMEOUT_SEC));
-            const [testStatus, setTestStatus] = useState(null); // null | 'testing' | 'ok' | 'fail'
+            const [testStatus, setTestStatus] = useState(null);
+            const [copied,     setCopied]     = useState(false);
 
             const save = (key, value) => setSetting(key, value);
 
@@ -157,109 +161,102 @@
                 const secret = (apiSecret || '').trim();
                 if (secret) headers['Authorization'] = `Bearer ${secret}`;
                 try {
-                    const res = await fetch(`${url}/health`, {
-                        headers,
-                        signal: AbortSignal.timeout(5000),
-                    });
+                    const res = await fetch(`${url}/health`, { headers, signal: AbortSignal.timeout(5000) });
                     setTestStatus(res.ok ? 'ok' : 'fail');
                 } catch {
                     setTestStatus('fail');
                 }
             };
 
-            const STATUS_COLOR = { ok: '#1db954', fail: '#e91429', testing: '#888' };
-            const STATUS_LABEL = {
-                ok:      '✓ 연결 성공',
-                fail:    '✗ 연결 실패',
-                testing: '연결 테스트 중...',
+            const copyInstallCmd = () => {
+                const cmd = INSTALL_CMD_WIN;
+                navigator.clipboard?.writeText(cmd).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                });
             };
 
-            return React.createElement('div', { className: 'ai-addon-settings youtube-caption-settings' },
+            const STATUS_COLOR = { ok: '#1db954', fail: '#e91429', testing: '#888' };
+            const STATUS_LABEL = { ok: '✓ 연결 성공', fail: '✗ 연결 실패', testing: '연결 테스트 중...' };
 
-                // 설명 박스
-                React.createElement('div', { className: 'ai-addon-info-box', style: { marginBottom: 16 } },
-                    React.createElement('p', { style: { fontWeight: 'bold', marginBottom: 6 } },
-                        'YouTube Caption Provider'),
-                    React.createElement('p', { style: { opacity: 0.8, fontSize: 13, lineHeight: 1.6 } },
-                        'yt-dlp 외부 서버를 통해 YouTube 공식 MV 자막을 가사로 표시합니다. ',
-                        '수동 등록 자막을 우선하며, 없을 경우 자동 생성 자막을 사용합니다.'
+            const S = {
+                card: { background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: '14px 16px', marginBottom: 14, border: '1px solid rgba(255,255,255,0.08)' },
+                label: { fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.5, marginBottom: 6 },
+                input: { width: '100%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, padding: '8px 10px', color: 'inherit', fontSize: 13, outline: 'none', boxSizing: 'border-box' },
+                desc: { fontSize: 12, opacity: 0.5, marginTop: 6, lineHeight: 1.5 },
+                btn: { padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'opacity 0.15s' },
+                btnPrimary: { background: '#1db954', color: '#000' },
+                btnSecondary: { background: 'rgba(255,255,255,0.1)', color: 'inherit' },
+                codeBox: { background: 'rgba(0,0,0,0.3)', borderRadius: 6, padding: '10px 12px', fontFamily: 'monospace', fontSize: 11, wordBreak: 'break-all', lineHeight: 1.6, border: '1px solid rgba(255,255,255,0.08)', marginTop: 8 },
+                divider: { borderTop: '1px solid rgba(255,255,255,0.08)', margin: '4px 0 14px' },
+            };
+
+            return React.createElement('div', { style: { padding: '4px 0' } },
+
+                // ── 서버 설치 안내 ──────────────────────────────────────────
+                React.createElement('div', { style: S.card },
+                    React.createElement('div', { style: { ...S.label } }, '🖥  로컬 서버 설치'),
+                    React.createElement('div', { style: S.divider }),
+                    React.createElement('p', { style: { fontSize: 13, lineHeight: 1.6, marginBottom: 10 } },
+                        '아래 명령어를 ',
+                        React.createElement('strong', null, 'PowerShell'),
+                        '에 붙여넣어 로컬 서버를 설치하세요. 설치 후 컴퓨터를 켤 때마다 자동으로 실행됩니다.'
+                    ),
+                    React.createElement('div', { style: S.codeBox }, INSTALL_CMD_WIN),
+                    React.createElement('div', { style: { display: 'flex', gap: 8, marginTop: 10 } },
+                        React.createElement('button', {
+                            style: { ...S.btn, ...(copied ? { background: '#1db954', color: '#000' } : S.btnSecondary) },
+                            onClick: copyInstallCmd,
+                        }, copied ? '✓ 복사됨' : '📋 명령어 복사'),
+                        React.createElement('a', {
+                            href: 'https://github.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider',
+                            target: '_blank',
+                            style: { ...S.btn, ...S.btnSecondary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' },
+                        }, '↗ GitHub')
                     )
                 ),
 
-                // 서버 URL
-                React.createElement('div', { className: 'ai-addon-setting' },
-                    React.createElement('label', { className: 'ai-addon-setting-label' }, '서버 URL'),
-                    React.createElement('input', {
-                        type: 'text',
-                        className: 'ai-addon-setting-input',
-                        placeholder: DEFAULT_SERVER_URL,
-                        value: serverUrl,
-                        onChange: (e) => {
-                            setServerUrl(e.target.value);
-                            save(SETTING.SERVER_URL, e.target.value);
-                            setTestStatus(null);
-                        },
-                    }),
-                    React.createElement('p', { className: 'ai-addon-setting-description' },
-                        'VPS 또는 로컬에서 실행 중인 yt-dlp 서버 주소.',
-                        React.createElement('br'),
-                        '예: http://123.456.789.0:8080 또는 https://captions.your-domain.com'
+                // ── 서버 URL ──────────────────────────────────────────────
+                React.createElement('div', { style: S.card },
+                    React.createElement('div', { style: S.label }, '⚙  서버 설정'),
+                    React.createElement('div', { style: S.divider }),
+
+                    React.createElement('div', { style: { marginBottom: 12 } },
+                        React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 6 } }, '서버 URL'),
+                        React.createElement('input', {
+                            type: 'text',
+                            style: S.input,
+                            placeholder: DEFAULT_SERVER_URL,
+                            value: serverUrl,
+                            onChange: (e) => { setServerUrl(e.target.value); save(SETTING.SERVER_URL, e.target.value); setTestStatus(null); },
+                        }),
+                        React.createElement('div', { style: S.desc }, '로컬 서버: http://localhost:8080  |  VPS: http://서버IP:8080')
+                    ),
+
+                    React.createElement('div', { style: { marginBottom: 14 } },
+                        React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 6 } }, `요청 타임아웃: ${timeoutSec}초`),
+                        React.createElement('input', {
+                            type: 'range', min: '10', max: '120', step: '5',
+                            value: String(timeoutSec),
+                            style: { width: '100%' },
+                            onChange: (e) => { const v = Number(e.target.value); setTimeoutSec(v); save(SETTING.TIMEOUT_SEC, v); },
+                        }),
+                        React.createElement('div', { style: S.desc }, 'yt-dlp 처리 시간을 고려해 30초 이상 권장')
+                    ),
+
+                    React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+                        React.createElement('button', {
+                            style: { ...S.btn, ...S.btnPrimary, opacity: testStatus === 'testing' ? 0.6 : 1 },
+                            onClick: testConnection,
+                            disabled: testStatus === 'testing',
+                        }, testStatus === 'testing' ? '테스트 중...' : '연결 테스트'),
+                        testStatus && testStatus !== 'testing' && React.createElement('span', {
+                            style: { color: STATUS_COLOR[testStatus], fontSize: 13, fontWeight: 700 },
+                        }, STATUS_LABEL[testStatus])
                     )
                 ),
 
-                // API 키 (선택)
-                React.createElement('div', { className: 'ai-addon-setting' },
-                    React.createElement('label', { className: 'ai-addon-setting-label' }, 'API 키 (선택)'),
-                    React.createElement('input', {
-                        type: 'password',
-                        className: 'ai-addon-setting-input',
-                        placeholder: '서버에 API_SECRET이 설정된 경우에만 입력',
-                        value: apiSecret,
-                        onChange: (e) => {
-                            setApiSecret(e.target.value);
-                            save(SETTING.API_SECRET, e.target.value);
-                            setTestStatus(null);
-                        },
-                    })
-                ),
-
-                // 타임아웃 슬라이더
-                React.createElement('div', { className: 'ai-addon-setting' },
-                    React.createElement('label', { className: 'ai-addon-setting-label' },
-                        `요청 타임아웃: ${timeoutSec}초`),
-                    React.createElement('input', {
-                        type: 'range',
-                        min: '10',
-                        max: '120',
-                        step: '5',
-                        value: String(timeoutSec),
-                        onChange: (e) => {
-                            const v = Number(e.target.value);
-                            setTimeoutSec(v);
-                            save(SETTING.TIMEOUT_SEC, v);
-                        },
-                    }),
-                    React.createElement('p', { className: 'ai-addon-setting-description' },
-                        'yt-dlp 처리 시간을 고려해 30초 이상을 권장합니다.'
-                    )
-                ),
-
-                // 연결 테스트 버튼
-                React.createElement('div', {
-                    className: 'ai-addon-setting',
-                    style: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 },
-                },
-                    React.createElement('button', {
-                        className: 'ai-addon-setting-button',
-                        onClick: testConnection,
-                        disabled: testStatus === 'testing',
-                    }, '연결 테스트'),
-                    testStatus && React.createElement('span', {
-                        style: { color: STATUS_COLOR[testStatus], fontSize: 13, fontWeight: 'bold' },
-                    }, STATUS_LABEL[testStatus])
-                ),
-
-                // 버전 + 업데이트 섹션
+                // ── 버전 정보 ─────────────────────────────────────────────
                 React.createElement(VersionSection, { serverUrl, apiSecret })
             );
         };
