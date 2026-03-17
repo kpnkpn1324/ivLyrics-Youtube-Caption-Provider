@@ -17,8 +17,8 @@
  *
  * @addon-type  lyrics
  * @id          youtube-caption
- * @version     1.0.0
- * @author      ivLis STUDIO
+ * @version     1.0.2
+ * @author      balloon
  */
 
 (() => {
@@ -29,14 +29,14 @@
     // ============================================
 
     const ADDON_ID      = 'youtube-caption';
-    const ADDON_VERSION = '1.0.1';
+    const ADDON_VERSION = '1.0.2';
     const GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json';
 
     const ADDON_INFO = {
         id: ADDON_ID,
         name: 'YouTube Caption',
-        author: 'ivLis STUDIO',
-        version: '1.0.1',
+        author: 'balloon',
+        version: '1.0.2',
         description: {
             en: 'Fetches lyrics from YouTube official MV captions via an external yt-dlp server. Manual captions are preferred; auto-captions are used as fallback.',
             ko: 'yt-dlp 외부 서버를 통해 YouTube 공식 뮤직비디오 자막에서 가사를 가져옵니다. 수동 자막을 우선 사용하며, 없을 경우 자동 생성 자막을 사용합니다.',
