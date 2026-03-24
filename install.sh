@@ -156,6 +156,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 EOF
     launchctl unload "$PLIST" 2>/dev/null || true
     launchctl load "$PLIST" 2>/dev/null || true
+    launchctl start kr.ivlis.ytcaption 2>/dev/null || true
     echo -e "  ${GREEN}[OK] LaunchAgent registered (starts on login)${NC}"
 else
     mkdir -p "$HOME/.config/systemd/user"
