@@ -1,8 +1,11 @@
 {
-  "server": "1.0.2",
-  "addon": "1.0.2",
-  "serverUrl": "https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.py",
+  "server": "1.0.3",
+  "addon": "1.0.1",
+  "serverJsUrl": "https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.js",
   "changelog": {
+    "1.0.3": "풀앨범 영상의 챕터(타임라인)에서 곡 구간을 찾아 자막 추출",
+    "1.0.2": "버전 체크 동기화",
+    "1.0.1": "YouTube Music 검색 폴백 개선",
     "1.0.0": "최초 릴리즈"
   }
 }
