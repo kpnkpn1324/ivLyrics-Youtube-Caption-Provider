@@ -3,21 +3,12 @@
  * YouTube 공식 뮤직비디오 자막(caption)을 가사 소스로 사용하는 ivLyrics 애드온
  *
  * 동작 방식:
- *   Spotify 트랙 정보 → VPS 서버(FastAPI + yt-dlp) → YouTube 검색 및 자막 추출
+ *   Spotify 트랙 정보 → 로컬/VPS 서버(Node.js + yt-dlp) → YouTube 검색 및 자막 추출
  *   → LRC 포맷 반환 → ivLyrics에 synced/unsynced 가사로 표시
- *
- * 설치:
- *   이 파일을 ivLyrics 폴더에 복사 후 manifest.json의 subfiles_extension에 추가
- *   manifest.json > subfiles_extension 배열:
- *     "Addon_Lyrics_Lrclib.js" 다음 줄에 "Addon_Lyrics_YoutubeCaption.js" 추가
- *
- * 서버 설정:
- *   server.py (동봉) 를 VPS 또는 로컬에서 실행 후
- *   ivLyrics 설정 > 가사 소스 탭 > YouTube Caption > 서버 URL 입력
  *
  * @addon-type  lyrics
  * @id          youtube-caption
- * @version     1.0.2
+ * @version     1.0.3
  * @author      balloon
  */
 
@@ -29,47 +20,39 @@
     // ============================================
 
     const ADDON_ID      = 'youtube-caption';
-    const ADDON_VERSION = '1.0.2';
+    const ADDON_VERSION = '1.0.3';
     const GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json';
 
     const ADDON_INFO = {
         id: ADDON_ID,
         name: 'YouTube Caption',
         author: 'balloon',
-        version: '1.0.2',
+        version: '1.0.3',
         description: {
             en: 'Fetches lyrics from YouTube official MV captions via an external yt-dlp server. Manual captions are preferred; auto-captions are used as fallback.',
             ko: 'yt-dlp 외부 서버를 통해 YouTube 공식 뮤직비디오 자막에서 가사를 가져옵니다. 수동 자막을 우선 사용하며, 없을 경우 자동 생성 자막을 사용합니다.',
         },
         supports: {
-            karaoke:  false,  // yt-dlp 자막은 줄 단위 타이밍만 제공
-            synced:   true,   // LRC 형식 → startTime(ms) + text
-            unsynced: true,   // 텍스트 전용 fallback
+            karaoke:  false,
+            synced:   true,
+            unsynced: true,
         },
-        // ivLyrics 커뮤니티 sync-data로 karaoke 자동 변환 활성화
         useIvLyricsSync: true,
-        // YouTube 재생 버튼 아이콘
         icon: 'M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z',
     };
 
     // ============================================
     // Setting Keys
-    // LyricsAddonManager.getAddonSetting/setAddonSetting 의 키 규칙:
-    //   'ivLyrics:lyrics:addon:{addonId}:{key}'
     // ============================================
 
     const SETTING = {
-        SERVER_URL:  'server-url',   // 서버 주소 (기본: http://localhost:8080)
-        API_SECRET:  'api-secret',   // Bearer 토큰 (선택)
-        TIMEOUT_SEC: 'timeout-sec',  // 요청 타임아웃(초)
+        SERVER_URL:  'server-url',
+        API_SECRET:  'api-secret',
+        TIMEOUT_SEC: 'timeout-sec',
     };
 
     const DEFAULT_SERVER_URL  = 'http://localhost:8080';
     const DEFAULT_TIMEOUT_SEC = 30;
-
-    // ============================================
-    // Helpers — LyricsAddonManager.getAddonSetting 래핑
-    // ============================================
 
     function getSetting(key, defaultValue) {
         return window.LyricsAddonManager?.getAddonSetting(ADDON_ID, key, defaultValue) ?? defaultValue;
@@ -100,11 +83,8 @@
         return headers;
     }
 
-
     // ============================================
     // LRC Parser
-    // [MM:SS.xx] 또는 [MM:SS,xx] → { synced, unsynced }
-    // Addon_Lyrics_Lrclib.js 와 동일한 반환 포맷
     // ============================================
 
     function parseLRC(lrc) {
@@ -135,7 +115,6 @@
 
     // ============================================
     // Settings UI (React Component)
-    // getSettingsUI() → ivLyrics 설정 패널에 자동 렌더링
     // ============================================
 
     const INSTALL_CMD_WIN = `iwr -useb "https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/install.ps1" -OutFile "$env:TEMP\\ytc.ps1"; powershell -ExecutionPolicy Bypass -NoExit -File "$env:TEMP\\ytc.ps1"`;
@@ -143,7 +122,7 @@
 
     function getSettingsUI() {
         const React = Spicetify.React;
-        const { useState, useEffect } = React;
+        const { useState } = React;
 
         return function YoutubeCaptionSettings() {
             const [serverUrl,  setServerUrl]  = useState(() => getSetting(SETTING.SERVER_URL,  DEFAULT_SERVER_URL));
@@ -193,7 +172,6 @@
 
             return React.createElement('div', { style: { padding: '4px 0' } },
 
-                // ── 서버 설치 안내 ──────────────────────────────────────────
                 React.createElement('div', { style: S.card },
                     React.createElement('div', { style: { ...S.label } }, '🖥  로컬 서버 설치'),
                     React.createElement('div', { style: S.divider }),
@@ -216,7 +194,6 @@
                     )
                 ),
 
-                // ── 서버 URL ──────────────────────────────────────────────
                 React.createElement('div', { style: S.card },
                     React.createElement('div', { style: S.label }, '⚙  서버 설정'),
                     React.createElement('div', { style: S.divider }),
@@ -256,26 +233,23 @@
                     )
                 ),
 
-                // ── 버전 정보 ─────────────────────────────────────────────
                 React.createElement(VersionSection, { serverUrl, apiSecret })
             );
         };
     }
 
-    // 버전 정보 + 업데이트 알림 컴포넌트
     function VersionSection({ serverUrl, apiSecret }) {
         const React = Spicetify.React;
         const { useState, useEffect } = React;
 
         const [serverInfo,    setServerInfo]    = useState(null);
         const [addonUpdate,   setAddonUpdate]   = useState(null);
-        const [updateStatus,  setUpdateStatus]  = useState(null); // null | 'updating' | 'done' | 'fail'
+        const [updateStatus,  setUpdateStatus]  = useState(null);
         const [checking,      setChecking]      = useState(false);
 
         const checkVersions = async () => {
             setChecking(true);
             try {
-                // 서버 버전 확인
                 const url = (serverUrl || DEFAULT_SERVER_URL).replace(/\/$/, '');
                 const headers = {};
                 const secret = (apiSecret || '').trim();
@@ -290,7 +264,6 @@
                     setServerInfo(data);
                 }
 
-                // 애드온 버전 확인 (GitHub version.json)
                 const vRes = await fetch(GITHUB_VERSION_URL + '?ts=' + Date.now(), {
                     signal: AbortSignal.timeout(5000),
                 });
@@ -324,7 +297,6 @@
                 const data = await res.json();
                 setUpdateStatus(data.status === 'up-to-date' ? 'done' : 'updating');
                 if (data.status === 'updating') {
-                    // 10초 후 다시 확인
                     setTimeout(() => {
                         checkVersions();
                         setUpdateStatus('done');
@@ -335,7 +307,6 @@
             }
         };
 
-        // 마운트 시 버전 확인
         useEffect(() => { checkVersions(); }, []);
 
         const UPDATE_COLOR = { updating: '#fbbf24', done: '#1db954', fail: '#e91429' };
@@ -349,14 +320,12 @@
             className: 'ai-addon-setting',
             style: { marginTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 16 }
         },
-            // 버전 정보
             React.createElement('div', { style: { display: 'flex', gap: 16, marginBottom: 10, fontSize: 12, opacity: 0.7 } },
                 React.createElement('span', null, `애드온 v${ADDON_VERSION}`),
                 serverInfo && React.createElement('span', null, `서버 v${serverInfo.version}`),
                 checking && React.createElement('span', null, '버전 확인 중...')
             ),
 
-            // 서버 업데이트 알림
             serverInfo?.hasUpdate && React.createElement('div', {
                 style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8,
                     padding: '8px 12px', borderRadius: 8,
@@ -375,7 +344,6 @@
                 }, UPDATE_LABEL[updateStatus])
             ),
 
-            // 애드온 업데이트 알림
             addonUpdate && React.createElement('div', {
                 style: { padding: '8px 12px', borderRadius: 8, fontSize: 13,
                     background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)',
@@ -387,7 +355,6 @@
                     'ivLyrics 마켓플레이스 또는 install 스크립트로 업데이트하세요.')
             ),
 
-            // 버전 재확인 버튼
             React.createElement('button', {
                 className: 'ai-addon-setting-button',
                 onClick: checkVersions,
@@ -397,27 +364,10 @@
         );
     }
 
-
     // ============================================
-    // getLyrics — 핵심 메서드
-    // LyricsAddonManager 가 호출하는 표준 인터페이스
+    // getLyrics
     // ============================================
 
-    /**
-     * @param {Object} info  { uri, title, artist, album, duration }
-     * @returns {Promise<LyricsResult>}
-     *
-     * LyricsResult:
-     * {
-     *   uri:       string,
-     *   provider:  string,
-     *   karaoke:   null,
-     *   synced:    Array<{startTime:number, text:string}> | null,
-     *   unsynced:  Array<{text:string}> | null,
-     *   copyright: null,
-     *   error:     string | null,
-     * }
-     */
     async function getLyrics(info) {
         const result = {
             uri:       info.uri,
@@ -429,7 +379,6 @@
             error:     null,
         };
 
-        // 서버 URL 확인
         const serverUrl = getServerUrl();
         if (!serverUrl) {
             result.error = 'YouTube Caption 서버 URL이 설정되지 않았습니다. 설정에서 서버 URL을 입력해주세요.';
@@ -448,7 +397,6 @@
             `[${ADDON_ID}] Fetching: "${title}" by "${artist}" → ${serverUrl}`
         );
 
-        // 서버 요청
         const params = new URLSearchParams({ title, artist, format: 'lrc' });
         const fetchUrl = `${serverUrl}/captions?${params}`;
         const timeout  = getTimeoutMs();
@@ -492,7 +440,6 @@
             return result;
         }
 
-        // LRC → synced / unsynced 변환
         const parsed = parseLRC(data.lrc);
         result.synced   = parsed.synced;
         result.unsynced = parsed.unsynced;
