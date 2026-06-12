@@ -35,7 +35,7 @@ const https      = require('https');
 const http       = require('http');
 
 // ─── 버전 정보 ────────────────────────────────────────────────────────────────
-const SERVER_VERSION     = '1.0.4';
+const SERVER_VERSION     = '1.0.5';
 const GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json';
 const GITHUB_SERVER_URL  = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.js';
 
@@ -229,13 +229,17 @@ function _normalizeLoose(s) {
     .trim();
 }
 
-function isRelevantResult(videoTitle, trackTitle, artist) {
+function isRelevantResult(videoTitle, trackTitle, artist, album) {
   const vt = _normalizeLoose(videoTitle);
   const tt = _normalizeLoose(trackTitle);
   if (!vt || !tt) return true; // 정보 부족 시 통과 (기존 동작 유지)
 
   // 곡 제목이 영상 제목에 포함되면 관련 있음
   if (vt.includes(tt)) return true;
+
+  // 앨범명이 영상 제목에 포함되면 관련 있음 (풀앨범/모음 영상)
+  const al = _normalizeLoose(album);
+  if (al && al.length > 1 && vt.includes(al)) return true;
 
   // 곡 제목의 단어 중 절반 이상이 영상 제목에 포함되면 관련 있음
   const ttWords = tt.split(/\s+/).filter(w => w.length > 1);
@@ -246,7 +250,7 @@ function isRelevantResult(videoTitle, trackTitle, artist) {
   return false;
 }
 
-async function searchYtMusic(title, artist, maxResults = 5) {
+async function searchYtMusic(title, artist, album, maxResults = 5) {
   const query = `${artist} ${title}`;
   log.info(`[YTMusic검색] '${query}'`);
 
@@ -265,16 +269,15 @@ async function searchYtMusic(title, artist, maxResults = 5) {
       if (entries.length > 0) {
         log.info(`[YTMusic검색] ${entries.length}개 (방식=${prefix})`);
 
-        const relevant = [];
-        const irrelevant = [];
-        for (const e of entries) {
-          const ok = isRelevantResult(e.title, title, artist);
+        const result = entries.map(e => {
+          const ok = isRelevantResult(e.title, title, artist, album);
           log.debug(`[YTMusic검색]   ${ok ? '✓' : '✗'} ${e.id} | ${e.title}`);
-          (ok ? relevant : irrelevant).push(e.id);
-        }
+          return { id: e.id, relevant: ok };
+        });
 
         // 관련 있는 결과를 우선, 무관한 결과는 뒤로 (완전히 버리지는 않음)
-        return [...relevant, ...irrelevant];
+        result.sort((a, b) => (b.relevant ? 1 : 0) - (a.relevant ? 1 : 0));
+        return result;
       }
     } catch (e) {
       log.warn(`[YTMusic검색] ${prefix} 실패: ${e.message}`);
@@ -624,7 +627,7 @@ app.post('/update', async (req, res) => {
 app.get('/captions', async (req, res) => {
   if (!verifySecret(req, res)) return;
 
-  const { title, artist, format = 'lrc', videoId } = req.query;
+  const { title, artist, album, format = 'lrc', videoId } = req.query;
   if (!title || !artist) return res.status(400).json({ detail: 'title and artist are required' });
 
   const cacheKey = makeKey('captions', title, artist, videoId || '', format);
@@ -647,19 +650,23 @@ app.get('/captions', async (req, res) => {
   // YouTube Music 검색
   if (!vid) {
     log.info('[검색] YouTube Music 우선');
-    const ytmCandidates = await searchYtMusic(title, artist);
+    const ytmCandidates = await searchYtMusic(title, artist, album);
     const fetched = {};
 
     for (const c of ytmCandidates) {
-      const r = await fetchCaptions(c, preferredLang, title);
-      fetched[c] = r;
-      if (r?.captions?.length && r.source === 'manual') { vid = c; result = r; break; }
+      fetched[c.id] = await fetchCaptions(c.id, preferredLang, title);
     }
-    if (!vid) {
-      for (const c of ytmCandidates) {
-        const r = fetched[c];
-        if (r?.captions?.length) { vid = c; result = r; break; }
-      }
+
+    // 우선순위: 관련+수동 > 관련+자동 > 무관+수동 > 무관+자동
+    const tiers = [
+      c => c.relevant   && fetched[c.id]?.source === 'manual',
+      c => c.relevant   && fetched[c.id]?.captions?.length,
+      c => !c.relevant  && fetched[c.id]?.source === 'manual',
+      c => !c.relevant  && fetched[c.id]?.captions?.length,
+    ];
+    for (const tier of tiers) {
+      const found = ytmCandidates.find(tier);
+      if (found) { vid = found.id; result = fetched[found.id]; break; }
     }
   }
 
