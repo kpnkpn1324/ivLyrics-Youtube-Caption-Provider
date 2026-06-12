@@ -35,7 +35,7 @@ const https      = require('https');
 const http       = require('http');
 
 // ─── 버전 정보 ────────────────────────────────────────────────────────────────
-const SERVER_VERSION     = '1.0.3';
+const SERVER_VERSION     = '1.0.4';
 const GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json';
 const GITHUB_SERVER_URL  = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.js';
 
@@ -215,6 +215,37 @@ async function detectLang(title, artist) {
 }
 
 // ─── YouTube 검색 ─────────────────────────────────────────────────────────────
+// ─── 검색 결과 검증 ───────────────────────────────────────────────────────────
+/**
+ * 영상 제목이 요청한 곡 제목/아티스트와 관련 있는지 느슨하게 검증.
+ * 너무 무관한 영상(엉뚱한 곡)을 자막 후보에서 제외하기 위함.
+ */
+function _normalizeLoose(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/\(feat[^)]*\)/g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+function isRelevantResult(videoTitle, trackTitle, artist) {
+  const vt = _normalizeLoose(videoTitle);
+  const tt = _normalizeLoose(trackTitle);
+  if (!vt || !tt) return true; // 정보 부족 시 통과 (기존 동작 유지)
+
+  // 곡 제목이 영상 제목에 포함되면 관련 있음
+  if (vt.includes(tt)) return true;
+
+  // 곡 제목의 단어 중 절반 이상이 영상 제목에 포함되면 관련 있음
+  const ttWords = tt.split(/\s+/).filter(w => w.length > 1);
+  if (ttWords.length === 0) return true;
+  const matched = ttWords.filter(w => vt.includes(w)).length;
+  if (matched / ttWords.length >= 0.5) return true;
+
+  return false;
+}
+
 async function searchYtMusic(title, artist, maxResults = 5) {
   const query = `${artist} ${title}`;
   log.info(`[YTMusic검색] '${query}'`);
@@ -226,15 +257,24 @@ async function searchYtMusic(title, artist, maxResults = 5) {
         `${prefix}:${query}`,
       ], 30000);
 
-      const ids = stdout.trim().split('\n')
+      const entries = stdout.trim().split('\n')
         .filter(Boolean)
-        .map(line => { try { return JSON.parse(line).id; } catch { return null; } })
+        .map(line => { try { return JSON.parse(line); } catch { return null; } })
         .filter(Boolean);
 
-      if (ids.length > 0) {
-        log.info(`[YTMusic검색] ${ids.length}개 (방식=${prefix})`);
-        ids.forEach(id => log.debug(`[YTMusic검색]   → ${id}`));
-        return ids;
+      if (entries.length > 0) {
+        log.info(`[YTMusic검색] ${entries.length}개 (방식=${prefix})`);
+
+        const relevant = [];
+        const irrelevant = [];
+        for (const e of entries) {
+          const ok = isRelevantResult(e.title, title, artist);
+          log.debug(`[YTMusic검색]   ${ok ? '✓' : '✗'} ${e.id} | ${e.title}`);
+          (ok ? relevant : irrelevant).push(e.id);
+        }
+
+        // 관련 있는 결과를 우선, 무관한 결과는 뒤로 (완전히 버리지는 않음)
+        return [...relevant, ...irrelevant];
       }
     } catch (e) {
       log.warn(`[YTMusic검색] ${prefix} 실패: ${e.message}`);
