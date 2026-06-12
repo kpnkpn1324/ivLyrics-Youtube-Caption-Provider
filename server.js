@@ -35,7 +35,7 @@ const https      = require('https');
 const http       = require('http');
 
 // ─── 버전 정보 ────────────────────────────────────────────────────────────────
-const SERVER_VERSION     = '1.0.2';
+const SERVER_VERSION     = '1.0.3';
 const GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/version.json';
 const GITHUB_SERVER_URL  = 'https://raw.githubusercontent.com/kpnkpn1324/ivLyrics-Youtube-Caption-Provider/main/server.js';
 
@@ -290,7 +290,62 @@ function pickBestLang(available, preferred) {
   return available.find(l => l.endsWith('-orig')) || available[0];
 }
 
-async function fetchCaptions(videoId, preferredLang) {
+// ─── 챕터(타임라인) 매칭 ──────────────────────────────────────────────────────
+/**
+ * 풀앨범/모음 영상의 챕터 목록에서 곡 제목과 가장 잘 일치하는 챕터를 찾음.
+ * 반환: { title, start_time, end_time } 또는 null (챕터 없음/매칭 실패)
+ */
+function _normalizeForMatch(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/\(feat[^)]*\)/g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .trim();
+}
+
+function findMatchingChapter(chapters, title) {
+  if (!chapters || !chapters.length) return null;
+
+  const target = _normalizeForMatch(title);
+  if (!target) return null;
+
+  let best = null;
+  let bestScore = 0;
+
+  for (const ch of chapters) {
+    // 챕터 제목에서 트랙넘버 등 접두어 제거 후 비교 (예: "1. ", "02 - ")
+    const chTitle = (ch.title || '').replace(/^\s*\d+[\.\)\-:]?\s*/, '');
+    const norm = _normalizeForMatch(chTitle);
+    if (!norm) continue;
+
+    let score = 0;
+    if (norm === target) {
+      score = 1;
+    } else if (norm.includes(target) || target.includes(norm)) {
+      // 포함 관계: 길이 비율로 점수 계산
+      const shorter = Math.min(norm.length, target.length);
+      const longer  = Math.max(norm.length, target.length);
+      score = shorter / longer;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = ch;
+    }
+  }
+
+  // 임계값: 너무 느슨한 매칭은 버림
+  if (best && bestScore >= 0.5) {
+    log.info(`[챕터매칭] '${title}' → '${best.title}' (score=${bestScore.toFixed(2)}, ${best.start_time}s~${best.end_time}s)`);
+    return best;
+  }
+
+  log.debug(`[챕터매칭] '${title}'에 맞는 챕터 없음 (best score=${bestScore.toFixed(2)})`);
+  return null;
+}
+
+async function fetchCaptions(videoId, preferredLang, trackTitle = null) {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
   log.info(`[자막조회] ${videoId}, preferred=${preferredLang}`);
 
@@ -305,6 +360,13 @@ async function fetchCaptions(videoId, preferredLang) {
   } catch (e) {
     log.warn(`[자막조회] 정보 조회 실패: ${e.message}`);
     return null;
+  }
+
+  // 풀앨범/모음 영상: 챕터에서 현재 곡 구간 찾기
+  let chapterRange = null;
+  if (trackTitle && Array.isArray(info.chapters) && info.chapters.length > 1) {
+    log.debug(`[챕터매칭] 영상에 챕터 ${info.chapters.length}개 발견`);
+    chapterRange = findMatchingChapter(info.chapters, trackTitle);
   }
 
   const manualLangs = Object.keys(info.subtitles || {});
@@ -361,11 +423,35 @@ async function fetchCaptions(videoId, preferredLang) {
       return null;
     }
 
-    const raw      = await fsp.readFile(path.join(tmpDir, files[0]), 'utf-8');
-    const captions = parseJson3(raw);
+    const raw    = await fsp.readFile(path.join(tmpDir, files[0]), 'utf-8');
+    let captions = parseJson3(raw);
     log.info(`[자막조회]   ✓ ${captions.length}줄 (source=${source}, lang=${chosenLang})`);
 
-    return { captions, source, lang: chosenLang };
+    // 챕터 구간이 있으면 해당 구간 자막만 추출하고 타임스탬프를 0부터 재계산
+    if (chapterRange) {
+      const startMs = Math.round(chapterRange.start_time * 1000);
+      const endMs   = chapterRange.end_time != null
+        ? Math.round(chapterRange.end_time * 1000)
+        : Infinity;
+
+      const before = captions.length;
+      captions = captions
+        .filter(c => c.startMs >= startMs && c.startMs < endMs)
+        .map(c => ({
+          ...c,
+          startMs: c.startMs - startMs,
+          endMs:   c.endMs - startMs,
+        }));
+
+      log.info(`[챕터매칭]   구간 필터: ${before}줄 → ${captions.length}줄 (offset -${startMs}ms)`);
+
+      if (!captions.length) {
+        log.warn('[챕터매칭]   구간 내 자막 없음');
+        return null;
+      }
+    }
+
+    return { captions, source, lang: chosenLang, chapter: chapterRange ? chapterRange.title : null };
   } finally {
     fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
@@ -514,7 +600,7 @@ app.get('/captions', async (req, res) => {
 
   // videoId 직접 지정
   if (videoId) {
-    result = await fetchCaptions(videoId, preferredLang);
+    result = await fetchCaptions(videoId, preferredLang, title);
     if (result?.captions?.length) vid = videoId;
   }
 
@@ -525,7 +611,7 @@ app.get('/captions', async (req, res) => {
     const fetched = {};
 
     for (const c of ytmCandidates) {
-      const r = await fetchCaptions(c, preferredLang);
+      const r = await fetchCaptions(c, preferredLang, title);
       fetched[c] = r;
       if (r?.captions?.length && r.source === 'manual') { vid = c; result = r; break; }
     }
@@ -547,7 +633,7 @@ app.get('/captions', async (req, res) => {
 
     const fetchedMv = {};
     for (const c of mvCandidates) {
-      const r = await fetchCaptions(c, preferredLang);
+      const r = await fetchCaptions(c, preferredLang, title);
       fetchedMv[c] = r;
       if (r?.captions?.length && r.source === 'manual') { vid = c; result = r; break; }
     }
@@ -563,7 +649,7 @@ app.get('/captions', async (req, res) => {
     return res.status(404).json({ detail: `'${artist} - ${title}' 자막을 찾을 수 없습니다.` });
   }
 
-  log.info(`[완료] ${vid}, source=${result.source}, lang=${result.lang}, lines=${result.captions.length}`);
+  log.info(`[완료] ${vid}, source=${result.source}, lang=${result.lang}, lines=${result.captions.length}${result.chapter ? `, chapter='${result.chapter}'` : ''}`);
 
   const response = {
     videoId: vid,
@@ -571,6 +657,7 @@ app.get('/captions', async (req, res) => {
     title, artist,
     source: result.source,
     lang:   result.lang,
+    chapter: result.chapter || null,
     captionCount: result.captions.length,
     cached: false,
   };
@@ -586,14 +673,14 @@ app.get('/captions', async (req, res) => {
 app.get('/captions/by-id', async (req, res) => {
   if (!verifySecret(req, res)) return;
 
-  const { videoId, format = 'lrc' } = req.query;
+  const { videoId, format = 'lrc', title } = req.query;
   if (!videoId) return res.status(400).json({ detail: 'videoId is required' });
 
-  const cacheKey = makeKey('by_id', videoId, format);
+  const cacheKey = makeKey('by_id', videoId, format, title || '');
   const cached   = cacheGet(cacheKey);
   if (cached) return res.json({ ...cached, cached: true });
 
-  const result = await fetchCaptions(videoId, null);
+  const result = await fetchCaptions(videoId, null, title || null);
   if (!result?.captions?.length) {
     return res.status(404).json({ detail: `'${videoId}' 자막을 찾을 수 없습니다.` });
   }
@@ -602,6 +689,7 @@ app.get('/captions/by-id', async (req, res) => {
     videoId,
     youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
     source: result.source, lang: result.lang,
+    chapter: result.chapter || null,
     captionCount: result.captions.length, cached: false,
   };
 
